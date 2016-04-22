@@ -19,7 +19,7 @@ const cli = meow({
     '  --output  Specify output file directory',
     '  --watch   Watch for changes in required files and rebuild on the fly',
     '',
-    'version: ' + pkg.version 
+    'version: ' + pkg.version
   ],
   alias:{
     i: 'input',
@@ -49,7 +49,7 @@ function walk(tree,cb) {
      tree[id] = walk(cb(node), cb);
    });
   }
-  if (tree && ({}).toString.call(tree) === '[object Object]' 
+  if (tree && ({}).toString.call(tree) === '[object Object]'
    && tree.hasOwnProperty('content')) {
      if (!Array.isArray(tree.content)) return;
      walk(tree.content, cb);
@@ -65,7 +65,7 @@ let newTree = walk(postHMTLTree, function (treeNode) {
       if (!content.length) return treeNode;
       let node = { tag: 'style', content: [] };
       content.split('\n').forEach((line) => {
-        node.content.push(line); 
+        node.content.push(line);
       });
       return node;
     }
@@ -75,8 +75,10 @@ let newTree = walk(postHMTLTree, function (treeNode) {
 
 let transformedHTML = treeRender(newTree);
 let xpath = path.parse(output);
+
 mkdirp.sync(xpath.dir);
 fs.writeFile(output, transformedHTML, 'utf8', (err, data) => {
    if (err) throw new Error('Error while trying write to file'+ JSON.stringify(err));
-   console.log('File was written'); 
+   console.log('File was written');
 });
+
