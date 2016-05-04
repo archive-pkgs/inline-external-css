@@ -50,7 +50,7 @@ function _walk(tree, cb) {
     }
     return tree;
 }
-function WriteFile(src, data) {
+function writeFile(src, data) {
     return new Promise((resolve, reject) => {
         fs.writeFile(src, data, (error, data) => {
             if (error)
@@ -59,7 +59,7 @@ function WriteFile(src, data) {
         });
     });
 }
-function ReadFileSync(src) {
+function readFileSync(src) {
     try {
         let _content = fs.readFileSync(src, { encoding: 'utf8' });
         return _content;
@@ -68,7 +68,7 @@ function ReadFileSync(src) {
         throw new Error('Could not read file: ' + JSON.stringify(error));
     }
 }
-function ReadFile(src) {
+function readFile(src) {
     return new Promise((resolve, reject) => {
         fs.readFile(src, 'utf8', (error, data) => {
             if (error)
@@ -81,7 +81,7 @@ function traverser(treeNode) {
     if (treeNode.tag === 'link' && treeNode.attrs) {
         if (treeNode.attrs.rel === 'stylesheet' && treeNode.attrs.href) {
             let path = treeNode.attrs.href;
-            let content = ReadFileSync(path);
+            let content = readFileSync(path);
             if (!content.length)
                 return treeNode;
             let node = { tag: 'style', content: [] };
@@ -93,7 +93,12 @@ function traverser(treeNode) {
     }
     return treeNode;
 }
-function CreateRecursiveDir(path) {
+function optimizer(tree) {
+    tree.forEach((node) => {
+        // @todo optimize traversed tree
+    });
+}
+function createRecursiveDir(path) {
     return new Promise((resolve, reject) => {
         mkdirp(path, (error) => {
             if (error)
@@ -102,22 +107,22 @@ function CreateRecursiveDir(path) {
         });
     });
 }
-function ProcessHTMLTree() {
+function processHTMLTree() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const html = yield ReadFile(entry);
-            let HTMLTree = HTMLparser(yield html);
+            const html = yield readFile(entry);
+            let HTMLTree = HTMLparser(html);
             if (!Object.keys(HTMLTree).length)
                 throw new Error('Empty tree');
             let newTree = _walk(HTMLTree, traverser);
             let transformedHTML = TreeRender(newTree);
             let xpath = path.parse(output);
-            yield CreateRecursiveDir(xpath.dir);
-            yield WriteFile(output, transformedHTML);
+            yield createRecursiveDir(xpath.dir);
+            yield writeFile(output, transformedHTML);
         }
         catch (error) {
             console.log('Error while processing tree, ERROR: ' + JSON.stringify(error));
         }
     });
 }
-ProcessHTMLTree();
+processHTMLTree();

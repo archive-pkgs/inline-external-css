@@ -9,12 +9,6 @@ const HTMLparser = require('posthtml-parser');
 const TreeRender = require('posthtml-render');
 const mkdirp = require('mkdirp')
 
-interface TreeNode {
-  tag: string,
-  attrs: any,
-  content: Array<string | TreeNode>
-}
-
 const cli = meow({
   help: `
     Usage
@@ -33,6 +27,12 @@ const cli = meow({
     o: 'output'
   }
 });
+
+interface TreeNode {
+  tag: string,
+  attrs: any,
+  content: Array<string | TreeNode>
+}
 
 let entry = cli.flags.i;
 let output = cli.flags.o || './_inlined.html';
@@ -53,7 +53,7 @@ function _walk(tree, cb) {
   return tree;
 }
 
-function WriteFile(src: string, data: string) {
+function writeFile(src: string, data: string) {
   return new Promise((resolve, reject) => {
     fs.writeFile(src, data, (error, data) => {
       if (error) return reject(error);
@@ -62,14 +62,14 @@ function WriteFile(src: string, data: string) {
   });
 }
 
-function ReadFileSync(src: string) {
+function readFileSync(src: string) {
   try { let _content = fs.readFileSync(src, { encoding: 'utf8' }); return _content; }
   catch(error) {
      throw new Error('Could not read file: ' + JSON.stringify(error));
   }
 }
 
-function ReadFile(src: string) {
+function readFile(src: string) {
   return new Promise((resolve, reject) => {
     fs.readFile(src, 'utf8', (error: Error, data: string) => {
       if (error) return reject(error);
@@ -82,7 +82,7 @@ function traverser(treeNode: TreeNode) {
   if (treeNode.tag === 'link' && treeNode.attrs) {
     if (treeNode.attrs.rel === 'stylesheet' && treeNode.attrs.href) {
       let path: string = treeNode.attrs.href;
-      let content:string  = ReadFileSync(path);
+      let content: string  = readFileSync(path);
       if (!content.length) return treeNode;
       let node = { tag: 'style', content: [] };
       content.split('\n').forEach((line) => {
@@ -100,7 +100,7 @@ function optimizer(tree: TreeNode[]) {
   });
 }
 
-function CreateRecursiveDir(path) {
+function createRecursiveDir(path) {
   return new Promise((resolve, reject) => {
     mkdirp(path, (error) => {
       if (error) return reject(error);
@@ -109,10 +109,10 @@ function CreateRecursiveDir(path) {
   });
 }
 
-async function ProcessHTMLTree() {
+async function processHTMLTree() {
   try {
-    const html = await ReadFile(entry);
-    let HTMLTree = HTMLparser(await html);
+    const html = await readFile(entry);
+    let HTMLTree = HTMLparser(html);
 
     if (!Object.keys(HTMLTree).length) throw new Error('Empty tree');
 
@@ -120,11 +120,11 @@ async function ProcessHTMLTree() {
     let transformedHTML = TreeRender(newTree);
     let xpath = path.parse(output);
 
-    await CreateRecursiveDir(xpath.dir);
-    await WriteFile(output, transformedHTML);
+    await createRecursiveDir(xpath.dir);
+    await writeFile(output, transformedHTML);
   } catch (error) {
     console.log('Error while processing tree, ERROR: ' + JSON.stringify(error));
   }
 }
 
-ProcessHTMLTree();
+processHTMLTree();
