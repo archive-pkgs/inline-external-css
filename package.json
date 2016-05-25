@@ -12,6 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "chalk": "^1.1.3",
     "meow": "^3.7.0",
     "mkdirp": "^0.5.1",
     "posthtml-parser": "^0.1.3",

@@ -8,12 +8,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments)).next());
     });
 };
+const log = require('./logger');
 const fs = require('fs');
 const path = require('path');
 const meow = require('meow');
 const HTMLparser = require('posthtml-parser');
 const TreeRender = require('posthtml-render');
 const mkdirp = require('mkdirp');
+// @todo optimize tree shaking
 const cli = meow({
     help: `
     Usage
@@ -65,7 +67,7 @@ function readFileSync(src) {
         return _content;
     }
     catch (error) {
-        throw new Error('Could not read file: ' + JSON.stringify(error));
+        log('error', 'Could not read file: ', error);
     }
 }
 function readFile(src) {
@@ -85,18 +87,14 @@ function traverser(treeNode) {
             if (!content.length)
                 return treeNode;
             let node = { tag: 'style', content: [] };
+            node.content.push('\n');
             content.split('\n').forEach((line) => {
-                node.content.push(line);
+                node.content.push(line + '\n');
             });
             return node;
         }
     }
     return treeNode;
-}
-function optimizer(tree) {
-    tree.forEach((node) => {
-        // @todo optimize traversed tree
-    });
 }
 function createRecursiveDir(path) {
     return new Promise((resolve, reject) => {
@@ -119,9 +117,10 @@ function processHTMLTree() {
             let xpath = path.parse(output);
             yield createRecursiveDir(xpath.dir);
             yield writeFile(output, transformedHTML);
+            log('info', 'File was written at ', output);
         }
         catch (error) {
-            console.log('Error while processing tree, ERROR: ' + JSON.stringify(error));
+            log('error', 'Error while processing tree ', error);
         }
     });
 }

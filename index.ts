@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 'use strict';
-
-import * as fs from 'fs';
-import * as path from 'path';
-
+const log = require('./logger');
+const fs = require('fs');
+const path = require('path');
 const meow = require('meow');
 const HTMLparser = require('posthtml-parser');
 const TreeRender = require('posthtml-render');
-const mkdirp = require('mkdirp')
+const mkdirp = require('mkdirp');
+
+// @todo optimize tree shaking
 
 const cli = meow({
   help: `
@@ -65,7 +66,7 @@ function writeFile(src: string, data: string) {
 function readFileSync(src: string) {
   try { let _content = fs.readFileSync(src, { encoding: 'utf8' }); return _content; }
   catch(error) {
-     throw new Error('Could not read file: ' + JSON.stringify(error));
+     log('error', 'Could not read file: ', error);
   }
 }
 
@@ -85,19 +86,14 @@ function traverser(treeNode: TreeNode) {
       let content: string  = readFileSync(path);
       if (!content.length) return treeNode;
       let node = { tag: 'style', content: [] };
+      node.content.push('\n');
       content.split('\n').forEach((line) => {
-        node.content.push(line);
+        node.content.push(line + '\n');
       });
       return node;
     }
   }
   return treeNode;
-}
-
-function optimizer(tree: TreeNode[]) {
-  tree.forEach((node: TreeNode|string) => {
-    // @todo optimize traversed tree
-  });
 }
 
 function createRecursiveDir(path) {
@@ -122,8 +118,10 @@ async function processHTMLTree() {
 
     await createRecursiveDir(xpath.dir);
     await writeFile(output, transformedHTML);
+
+    log('info', 'File was written at ', output);
   } catch (error) {
-    console.log('Error while processing tree, ERROR: ' + JSON.stringify(error));
+    log('error', 'Error while processing tree ', error);
   }
 }
 
