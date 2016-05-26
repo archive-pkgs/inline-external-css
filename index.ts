@@ -36,9 +36,9 @@ interface TreeNode {
 }
 
 let entry = cli.flags.i;
-let output = cli.flags.o || './_inlined.html';
+let output = cli.flags.o || './bundle.html';
 
-if (!entry) console.log('Entry file should be added');
+if (!entry) log('error', 'Entry file should be added');
 
 function _walk(tree, cb) {
  if (Array.isArray(tree)) {
@@ -58,7 +58,7 @@ function writeFile(src: string, data: string) {
   return new Promise((resolve, reject) => {
     fs.writeFile(src, data, (error, data) => {
       if (error) return reject(error);
-      resolve({ success: 'File was written!' });
+      resolve();
     });
   });
 }
@@ -66,7 +66,7 @@ function writeFile(src: string, data: string) {
 function readFileSync(src: string) {
   try { let _content = fs.readFileSync(src, { encoding: 'utf8' }); return _content; }
   catch(error) {
-     log('error', 'Could not read file: ', error);
+     log('error', `Could not read file ${error}`);
   }
 }
 
@@ -98,31 +98,91 @@ function traverser(treeNode: TreeNode) {
 
 function createRecursiveDir(path) {
   return new Promise((resolve, reject) => {
-    mkdirp(path, (error) => {
-      if (error) return reject(error);
-      resolve();
+    fs.stat(path, (error, stat) => {
+       if (stat.isDirectory()) return;
+        mkdirp(path, (error) => {
+        if (error) return reject(error);
+        resolve();
+      });
     });
   });
 }
 
-async function processHTMLTree() {
+async function parseHTMLfile(entry) {
   try {
     const html = await readFile(entry);
     let HTMLTree = HTMLparser(html);
-
-    if (!Object.keys(HTMLTree).length) throw new Error('Empty tree');
-
-    let newTree = _walk(HTMLTree, traverser);
-    let transformedHTML = TreeRender(newTree);
-    let xpath = path.parse(output);
-
-    await createRecursiveDir(xpath.dir);
-    await writeFile(output, transformedHTML);
-
-    log('info', 'File was written at ', output);
+    if (!Object.keys(HTMLTree).length) return;
+    return HTMLTree;
   } catch (error) {
-    log('error', 'Error while processing tree ', error);
+    log('error', `Error while parsing html file: ${error}`);
   }
 }
 
-processHTMLTree();
+async function transformHTMLTree(tree) {
+  try {
+    const newTree = _walk(tree, traverser);
+    let transformedHTML = TreeRender(newTree);
+    return transformedHTML;
+  } catch (error) {
+    log('error', `Error while transforming tree ${tree}`);
+  }
+}
+
+async function processHTMLTree(entry) {
+  try {
+    const parsedTree = await parseHTMLfile(entry);
+    const transfomedHTML = await transformHTMLTree(await parsedTree);
+    return { file: entry, ctx: transfomedHTML };
+  } catch (error) {
+    log.error('error', `Error while processing tree ${error}`);
+  }
+}
+
+
+
+  // let xpath = path.parse(output);
+
+  //   await createRecursiveDir(xpath.dir);
+  //   await writeFile(output, transformedHTML);
+
+  //   const parsed = path.parse(output);
+
+  //   log('info', `File ${parsed.base} was written at ${parsed.dir}`);
+
+if (Array.isArray(entry)) {
+  const promises = entry.map((file) => {
+    return processHTMLTree(file);
+  });
+  Promise.all(promises).then((results:any) => {
+    let xpath = path.parse(output);
+    const deffers = results.map((value, id, arr) => {
+      return new Promise((resolve, reject) => {
+        createRecursiveDir(xpath.dir)
+        .then(() => {
+          writeFile(path.join(xpath.dir, value.file), value.ctx)
+            .then(() => {
+              log('info', `File ${value.file} was written at ${xpath.dir}`);
+              resolve();
+            })
+            .catch((error) => {
+              log('info', `Error while attemping to write file ${error}`);
+              reject(error);
+            })
+        })
+        .catch((error) => {
+          log('error', `Error while creating dir ${error}`);
+          reject(error);
+        });
+      });
+    });
+    Promise.all(deffers).then(() => {
+      log('info', `Files was written at ${xpath.dir}`);
+    })
+    .catch((error) => {
+      log('error', `Error while attemping to write files ${error}`);
+    });
+  });
+} else {
+  console.log('test');
+}

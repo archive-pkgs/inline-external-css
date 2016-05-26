@@ -35,9 +35,9 @@ const cli = meow({
     }
 });
 let entry = cli.flags.i;
-let output = cli.flags.o || './_inlined.html';
+let output = cli.flags.o || './bundle.html';
 if (!entry)
-    console.log('Entry file should be added');
+    log('error', 'Entry file should be added');
 function _walk(tree, cb) {
     if (Array.isArray(tree)) {
         tree.forEach((node, id, arr) => {
@@ -57,7 +57,7 @@ function writeFile(src, data) {
         fs.writeFile(src, data, (error, data) => {
             if (error)
                 return reject(error);
-            resolve({ success: 'File was written!' });
+            resolve();
         });
     });
 }
@@ -67,7 +67,7 @@ function readFileSync(src) {
         return _content;
     }
     catch (error) {
-        log('error', 'Could not read file: ', error);
+        log('error', `Could not read file ${error}`);
     }
 }
 function readFile(src) {
@@ -98,30 +98,94 @@ function traverser(treeNode) {
 }
 function createRecursiveDir(path) {
     return new Promise((resolve, reject) => {
-        mkdirp(path, (error) => {
-            if (error)
-                return reject(error);
-            resolve();
+        fs.stat(path, (error, stat) => {
+            if (stat.isDirectory())
+                return;
+            mkdirp(path, (error) => {
+                if (error)
+                    return reject(error);
+                resolve();
+            });
         });
     });
 }
-function processHTMLTree() {
+function parseHTMLfile(entry) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const html = yield readFile(entry);
             let HTMLTree = HTMLparser(html);
             if (!Object.keys(HTMLTree).length)
-                throw new Error('Empty tree');
-            let newTree = _walk(HTMLTree, traverser);
-            let transformedHTML = TreeRender(newTree);
-            let xpath = path.parse(output);
-            yield createRecursiveDir(xpath.dir);
-            yield writeFile(output, transformedHTML);
-            log('info', 'File was written at ', output);
+                return;
+            return HTMLTree;
         }
         catch (error) {
-            log('error', 'Error while processing tree ', error);
+            log('error', `Error while parsing html file: ${error}`);
         }
     });
 }
-processHTMLTree();
+function transformHTMLTree(tree) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const newTree = _walk(tree, traverser);
+            let transformedHTML = TreeRender(newTree);
+            return transformedHTML;
+        }
+        catch (error) {
+            log('error', `Error while transforming tree ${tree}`);
+        }
+    });
+}
+function processHTMLTree(entry) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const parsedTree = yield parseHTMLfile(entry);
+            const transfomedHTML = yield transformHTMLTree(yield parsedTree);
+            return { file: entry, ctx: transfomedHTML };
+        }
+        catch (error) {
+            log.error('error', `Error while processing tree ${error}`);
+        }
+    });
+}
+// let xpath = path.parse(output);
+//   await createRecursiveDir(xpath.dir);
+//   await writeFile(output, transformedHTML);
+//   const parsed = path.parse(output);
+//   log('info', `File ${parsed.base} was written at ${parsed.dir}`);
+if (Array.isArray(entry)) {
+    const promises = entry.map((file) => {
+        return processHTMLTree(file);
+    });
+    Promise.all(promises).then((results) => {
+        let xpath = path.parse(output);
+        const deffers = results.map((value, id, arr) => {
+            return new Promise((resolve, reject) => {
+                createRecursiveDir(xpath.dir)
+                    .then(() => {
+                    writeFile(path.join(xpath.dir, value.file), value.ctx)
+                        .then(() => {
+                        log('info', `File ${value.file} was written at ${xpath.dir}`);
+                        resolve();
+                    })
+                        .catch((error) => {
+                        log('info', `Error while attemping to write file ${error}`);
+                        reject(error);
+                    });
+                })
+                    .catch((error) => {
+                    log('error', `Error while creating dir ${error}`);
+                    reject(error);
+                });
+            });
+        });
+        Promise.all(deffers).then(() => {
+            log('info', `Files was written at ${xpath.dir}`);
+        })
+            .catch((error) => {
+            log('error', `Error while attemping to write files ${error}`);
+        });
+    });
+}
+else {
+    console.log('test');
+}
